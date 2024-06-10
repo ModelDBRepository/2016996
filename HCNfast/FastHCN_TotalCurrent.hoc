@@ -1,0 +1,1159 @@
+load_file("stdlib.hoc")
+load_file("ObliquePath.hoc")
+
+objref cvode
+cvode = new CVode()
+cvode.active(0)
+
+
+create axon[2]
+objref SD, AXON, SA, Basal, Trunk, AIS
+objref LM, RAD, RADt, LUC, PSA, PSB, ORI
+create soma[1], apical[1], basal[1]
+objref pl[150], opl[150]
+
+objref netlist, s, ampasyn, f1, DEND, sapamp, somavec, sampvec
+strdef  str2
+
+
+
+dt = 0.025
+tstop = 1550// 1050 //1sec (first 50ms not counted)
+steps_per_ms=40
+
+Rm_soma=80000
+Rm_end=400
+Rm_dend = Rm_soma
+Rm_axon = Rm_soma
+rm_xhalf = 225
+rm_slope = 30
+
+Ra_soma=150
+Ra_end=150
+Ra_axon = Ra_soma
+Ra_xhalf = 210
+Ra_slope = 50
+
+
+c_m       = 1
+cmsoma    = c_m
+cmdend    = c_m*1.8
+cmaxon    = c_m
+
+Vrest = -65
+v_init = -65
+celsius = 34.0
+
+
+// uncomment/call find_epsp_amplitudes whenever u change any of the following parameters ..
+
+gna=0.02
+gkdr=0.0014
+gna=0 //this is the w/o Na file
+gkdr=0 //this is the w/o kdr file
+
+gexFac = 0.9
+
+AISFactor=5
+epsp_amp = 0.0025  //mV
+
+
+
+objref ampa_filename
+ampa_filename = new String()
+
+gh=25e-06//µS set to the value for which you'll be running withH.hoc and WithHfast.hoc
+ghmax=20
+xhalf=250
+slopegrad=50
+
+sprint(ampa_filename.s,"g_dist_withgh0_epspAmp_%f_calculated.txt",epsp_amp)
+
+/********************************************************************/
+
+
+Ek = -90
+Ena = 55
+Eh=-30
+
+
+/********************************************************************/
+//radial distance calculation
+
+somax=2.497
+somay=-13.006
+somaz=11.12
+double distances[200]
+
+func raddist() {
+	distn0=distance(0)
+	distances[0]=0
+	sum=0
+    
+	for i=1,n3d()-1 {
+		xx=(x3d(i)-x3d(i-1))*(x3d(i)-x3d(i-1))
+		yy=(y3d(i)-y3d(i-1))*(y3d(i)-y3d(i-1))
+		zz=(z3d(i)-z3d(i-1))*(z3d(i)-z3d(i-1))
+		sum=sum+sqrt(xx+yy+zz)
+		distances[i]=sum
+	}
+    
+	xval=$1
+    
+    // Amoung the various pt3d's find which one matches the distance of
+    //  x closely
+    
+	distn=distance(xval)
+	match=distn-distn0
+	matchptdist=100000
+	for i=0,n3d()-1 {		
+		matptdist=(match-distances[i])*(match-distances[i])
+		if(matchptdist>matptdist){
+			matchptdist=matptdist
+			matchi=i
+		}
+	}
+    
+	//print "Match for ", x, " is ", matchi, " XDIST ", match, " MATCH ", distances[matchi], " ERROR ", sqrt(matchptdist)
+    
+    
+    // Find the distance of the closely matched point to the somatic
+    // centroid and use that as the distance for this BPAP measurement			
+    
+	xx=(x3d(matchi)-somax)*(x3d(matchi)-somax)
+	yy=(y3d(matchi)-somay)*(y3d(matchi)-somay)
+	zz=(z3d(matchi)-somaz)*(z3d(matchi)-somaz)
+	return sqrt(xx+yy+zz)
+}
+
+/********************************************************************/
+
+proc update_init(){
+	finitialize(v_init)
+	fcurrent()
+    forall {
+        for (x){
+            if (ismembrane("hd")||ismembrane("nas")||ismembrane("na3")||ismembrane("nax")) {
+                e_pas(x)=v(x)+(i_hd(x)+ina(x)+ik(x))/g_pas(x)
+            } else {
+                e_pas(x)=v(x)
+            }
+        }
+    }
+}
+/********************************************************************/
+
+
+// Passive Conductances 
+
+proc setpassive(){
+    forall {
+        insert pas
+        e_pas = v_init
+        Ra=Ra_soma
+    }
+    forsec SD{		// For somato-dendritic compartments
+        cm=cmdend
+        g_pas=1/Rm_dend
+    }
+    forsec "soma" {
+        cm = cmsoma 
+        g_pas=1/Rm_soma
+    }
+    forsec Trunk {
+        for (x) {
+            rdist=raddist(x)
+            rm = Rm_soma + (Rm_end - Rm_soma)/(1.0 + exp((rm_xhalf-rdist)/rm_slope))
+            Ra = Ra_soma + (Ra_end - Ra_soma)/(1.0 + exp((Ra_xhalf-rdist)/Ra_slope))
+            g_pas(x)=1/rm
+        }
+    }	
+    
+    for i=0,plcount {
+        seccount=0
+        forsec pl[i] {
+            if(!seccount){
+                trunk_pas=g_pas(1)
+                seccount=seccount+1
+            } else {
+                g_pas=trunk_pas
+                seccount=seccount+1
+            }
+            //print secname() 
+        }
+    }       
+    
+}
+/**********************************************************************/
+// Active Conductances 
+
+
+
+proc setactive () {
+    
+	forall{
+        insert na3
+        gbar_na3= gna 
+        insert kdr 
+        gkdrbar_kdr=gkdr
+        
+        
+        insert hd  
+		ghdbar_hd=gh vhalfl_hd=-82
+        tfactor_hd=0.2
+	}
+    
+	forsec AXON{
+        gbar_na3= 0 
+        gkdrbar_kdr=0
+        ghdbar_hd=0
+        
+    }
+    
+    
+    forsec "apical"{
+        insert nas
+        gbar_nas = gna //has a slow "s" factor
+        
+        gbar_na3 = 0 //since this was added forall, remove from apical section
+        
+    }
+    
+    forsec AIS {
+        gbar_na3= 0 
+        insert nax 
+        gbar_nax = gna*AISFactor//0//10          //5             //50
+        
+        gkdrbar_kdr=gkdr
+        ghdbar_hd=0
+	}
+    
+    forall{
+        if(ismembrane("hd")){
+            ehd_hd=-30
+        }
+        
+        if(ismembrane("na3") || ismembrane("nas") || ismembrane("nax")){
+            ena=55
+        }
+        
+        if(ismembrane("kdr")){
+            ek=-90
+        }
+        
+        
+        
+    }
+    
+    
+	
+}
+
+
+/********************************************************************/
+proc gh_gradient(){
+	
+	
+	forsec Trunk {	// Trunk
+        
+		for (x) {
+			xdist=raddist(x)
+			
+			ghdbar_hd(x) = gh*(1+ghmax/(1+exp(-(xdist-xhalf)/slopegrad)))  
+            
+            
+			if (xdist > 100){
+				if (xdist>300) { 
+					ndist=300
+				} else { // 100 <= xdist <= 300
+					ndist=xdist
+				}
+				vhalfl_hd(x)=-82-8*(ndist-100)/200
+			} else {	// xdist < 100
+				vhalfl_hd(x)=-82
+			}	
+            
+		}
+	}
+    
+	for i=0,plcount { // Apical obliques
+    	seccount=0
+    	forsec pl[i] {
+        	if(!seccount){	// The first section is the trunk
+            	trunk_h=ghdbar_hd(1)
+				trunk_vhalf=vhalfl_hd(1)
+				seccount=seccount+1
+        	} else {
+				
+            	ghdbar_hd=trunk_h
+				vhalfl_hd=trunk_vhalf
+				seccount=seccount+1
+        	}
+        	//print secname() 
+    	}
+	}       
+    
+	forsec "soma" {
+        ghdbar_hd=gh vhalfl_hd=-82
+	}	
+    
+	forsec Basal {
+        ghdbar_hd=gh vhalfl_hd=-82
+	}	
+    
+	forall if (ismembrane("hd") ) ehd_hd = Eh
+        
+        
+        
+        
+        }
+
+
+/**********************************************************************/
+proc load_3dcell() {
+    
+    // $s1 filename
+    
+	forall delete_section()
+	xopen($s1)
+    
+	access soma[2] //define origin for distance calculation
+	distance()
+    
+    
+	SD = new SectionList() //Somato-dendritic section
+	SA = new SectionList() // Somato-axonic section
+	Trunk = new SectionList() //Trunk
+	Basal = new SectionList() //Basal
+    
+	forsec "soma" {
+		SD.append()
+		SA.append()
+	}
+    
+	forsec "basal" { 
+		SD.append()
+		Basal.append()
+	}
+    
+	forsec "apical"{
+		SD.append()
+		SA.append()
+	}
+    
+	// Trunk. 
+    
+	soma[0]	   Trunk.append()
+	apical[0]  Trunk.append() 
+	apical[4]  Trunk.append() 
+	apical[6]  Trunk.append() 
+	apical[14] Trunk.append() 
+	apical[15] Trunk.append() 
+	apical[16] Trunk.append() 
+	apical[22] Trunk.append() 
+	apical[23] Trunk.append() 
+	apical[25] Trunk.append() 
+	apical[26] Trunk.append() 
+	apical[27] Trunk.append() 
+	apical[41] Trunk.append() 
+	apical[42] Trunk.append() 
+	apical[46] Trunk.append() 
+	apical[48] Trunk.append() 
+	apical[56] Trunk.append() 
+	apical[58] Trunk.append() 
+	apical[60] Trunk.append() 
+	apical[62] Trunk.append() 
+	apical[64] Trunk.append() 
+	apical[65] Trunk.append() 
+	apical[69] Trunk.append() 
+	apical[71] Trunk.append()
+	apical[81] Trunk.append() 
+	apical[83] Trunk.append() 
+	apical[95] Trunk.append()
+	apical[103] Trunk.append()
+	apical[104] Trunk.append()
+    
+    load_file("oblique-paths.hoc")
+    
+    setpassive() //before setting the nseg
+    // The lambda constraint
+    totcomp=0
+    forall{
+        nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1   
+        totcomp=totcomp+nseg
+    }
+    print "totcomp = ",totcomp
+    
+    
+    
+	init_cell() //calls setpassive()
+    
+    DEND = new SectionList()
+    forsec "apical"{
+        xdist=raddist(1)
+        if(xdist<300 && xdist > 50){
+            DEND.append()
+        }    
+    }
+    
+    
+    
+	
+}
+
+/**********************************************************************/
+// For cell number n123 on the DSArchive, converted with CVAPP to give
+// HOC file, the following definition holds. This is the same as Poirazi et
+// al. have used in Neuron, 2003. The argument is that the subtree seems
+// so long to be a dendrite, and the cell does not have a specific axon.
+// There is a catch, though, if the morphology is closely scanned, then 
+// basal dendrites would branch from these axonal segments - which
+// may be fine given the amount of ambiguity one has while tracing! 
+
+proc addaxon() {
+    
+	AXON = new SectionList()
+    AIS = new SectionList() // Axonal initial segment
+    
+	for i = 30,34 basal[i] {
+		AXON.append()
+		Basal.remove()
+	}
+    
+	for i = 18,22 basal[i] {
+		AXON.append()
+        AIS.append()
+		Basal.remove()
+	}
+    
+	forsec AXON {
+		e_pas=v_init 
+		g_pas = 1/Rm_axon 
+		Ra=Ra_axon 
+		cm=cmaxon
+	}
+}
+
+/********************************************************************/
+
+
+
+
+
+proc init_cell() {
+	setpassive()
+	addaxon()
+	setactive()
+	gh_gradient() //sets the gh gradient
+	
+	access soma[2]	// Reinitializing distance origin
+	distance()
+    
+	finitialize(v_init)
+	fcurrent()
+    forall {
+        for (x) {
+            if (ismembrane("hd")||ismembrane("nas")||ismembrane("na3")||ismembrane("nax")) {
+                e_pas(x)=v(x)+(i_hd(x)+ina(x)+ik(x))/g_pas(x)
+            } else {
+                e_pas(x)=v(x)
+            }
+        }
+    }   
+}
+
+
+/********************************************************************/
+
+
+load_3dcell("n123.hoc") //calls setpassive()
+
+
+///********************************************************************/
+
+
+objref tvec,f_tvec,f_name_tvec // time vector , time file, time file name
+objref cvec,f_cvec, f_name_cvec // soma(0.5) voltage vector, file , file name
+objref cvec42, cvec62, cvec69 // apical[42], apical[62], apical[69]
+cvec=new Vector()
+cvec42=new Vector()
+cvec62=new Vector()
+cvec69=new Vector()
+tvec=new Vector()
+f_tvec = new File()
+f_cvec = new File()
+f_name_cvec= new String()
+f_name_tvec = new String()
+
+
+/********************************************************************/
+
+numexsyn =50// 100//221//100//221//100//221 //100 //number of excitatory synapses
+numinsyn = 25 //number of inhibitory synapses
+
+use_mcell_ran4(1)
+
+//highindex = 8 //use the same highindex for all trials for distribution of inhibitory synapses 
+trialNo = 1
+highindex = trialNo + 1e8*mcell_ran4(&trialNo) //seed for synaptic distribution
+
+
+objref r
+r = new Random(highindex) // will be of type discunif() to generate comaparment #s where the excitatory synapses will go
+//r = new Random()
+
+no_of_comp=totcomp // total number fo compartments
+
+/********************************************************************/
+
+objref isExSynapse, isInSynapse, isSynapse  //vectors to store synapse location; 1 for synapse, 0 for not
+objref f_isSynapse,f_isExSynapse, f_isInSynapse // file objects for saving synapse location vectors
+objref f_name_isSynapse, f_name_isExSynapse,f_name_isInSynapse // names -string objects for synpase location file names
+
+objref i_total[no_of_comp], f_total_current,f_name_total //total current vector, file and file name
+objref i_pas_current[no_of_comp],f_pas_current, f_name_pas // passive current vector, file and file name
+objref i_cap_current[no_of_comp],f_cap_current, f_name_cap // capacitive current vector, file and file name
+objref i_queer_current[no_of_comp],f_queer_current, f_name_queer // h current vector, file and file name
+
+
+
+objref esyncurr[numexsyn+1], f_esyncurr, f_name_esyncurr // excitatory synaptic current vectot, file and file name; last index stores total ex syn current
+objref isyncurr[numinsyn+1], f_isyncurr, f_name_isyncurr // inhibitory synaptic current vector, file and file name; last index stores total in syn current
+
+objref f_e_time, f_name_etime, e_time[numexsyn+1] // excitatory synaptic timings - to check whether their histogram looks gaussian modulated or not; last index used for all ex syn times 
+objref f_i_time, f_name_itime, i_time[numinsyn+1] // inhibitory synaptic timings - to check whether their histogram looks random (uniform) or not; last index used for all in syn times
+objref ex_syn_locations //contains compartment indices where excitatory synapses are present
+objref in_syn_locations //contains compartment indices where inhibitory synapses are present
+
+
+isExSynapse= new Vector(no_of_comp)
+isInSynapse= new Vector(no_of_comp)
+isSynapse = new Vector(no_of_comp)
+ex_syn_locations = new Vector(numexsyn)
+in_syn_locations = new Vector(numinsyn)
+
+f_isSynapse = new File()
+f_isExSynapse = new File()
+f_isInSynapse = new File()
+f_total_current = new File()
+f_pas_current = new File()
+f_cap_current = new File()
+f_queer_current = new File()
+f_esyncurr = new File()
+f_isyncurr = new File()
+f_e_time= new File()
+f_i_time= new File()
+
+
+f_name_isSynapse = new String()
+f_name_isExSynapse= new String()
+f_name_isInSynapse= new String()
+f_name_total = new String()
+f_name_pas = new String()
+f_name_cap = new String()
+f_name_queer = new String()
+f_name_esyncurr = new String()
+f_name_isyncurr = new String()   
+f_name_etime= new String()
+f_name_itime= new String()
+
+for(i=0;i<no_of_comp;i+=1){
+    i_total[i]=new Vector() //total current
+    i_pas_current[i] = new Vector() //passive current
+    i_cap_current[i] = new Vector() //capacitive current
+    i_queer_current[i] = new Vector() //queer current
+        
+}
+
+for(i=0;i<=numexsyn;i+=1){
+    e_time[i]= new Vector()
+    esyncurr[i] = new Vector() // excitatory synaptic current vector
+    
+}
+
+for(i=0;i<=numinsyn;i+=1){
+    i_time[i]= new Vector()
+    isyncurr[i] = new Vector() // inhibitory synaptic curren vector 
+    
+}
+
+/********************************************************************/
+
+//objects to be used with NetCon
+objref nile  
+objref conne[numexsyn]
+
+objref nili
+objref conni[numinsyn]
+
+/********************************************************************/
+
+cvec.record(&soma[2].v(0.5)) // save the voltage at the soma
+cvec42.record(&apical[42].v(0.5)) // save the voltage at the apical[42] raddist(1)=158.16
+cvec62.record(&apical[62].v(0.5)) // save the voltage at the apical[62] raddist(1)=235.56799 
+cvec69.record(&apical[69].v(0.5)) // save the voltage at the apical[69] raddist(1)=303.59043
+
+//v_soma.record(&soma[2].v(0.5))
+
+/********************************************************************/
+
+objref ex_synapse_compartment_index //will store the index of the excitatory synaptic input
+
+
+/********************************************************************/
+
+
+//add synapses
+
+//gex = 0.0008 //excitatory synaptic conductance  µS
+objref syne[numexsyn] // excitatory synapses - will be of type Exp2Syn()
+Ecount=0 //counter for ex synpases 
+
+segcount=0
+
+gin =0.0001// 0.0064//0.0025//0.0032 //0.0008 //0.0025 //0.0032 // µS - to balance the excitation - (as the number of inhibitory synapses is less) increase the inhibitory synaptic conductance ??? 
+objref syni[numinsyn] //inhibitory synapses - will be of type Exp2Syn()
+Icount=0 //counter for in synapses
+
+count = 0 //keeps track of apical section compartment index
+count_dend = 0// should be same as count 
+exsegcount=0 //indexes only the apical sections matching a certain criteria
+
+/*forsec "apical"{
+ for(x){
+ xdist = raddist(1) 
+ if(xdist>50 && xdist<300){
+ if(x!=0 && x!=1){
+ xdist = raddist(x) //get the radial distance from the soma
+ print "using apical ", xdist
+ count = count + 1
+ }
+ }
+ }
+ }
+ */
+forsec DEND{
+    for (x) {
+        if (x!=0 && x!=1){
+            xdist = raddist(x)
+            //  print "using DEND ", xdist
+            count_dend= count_dend + 1 
+        }
+    }
+}
+
+//print "count of apical >50 <300 : ", count
+print "count of apical >50 <300 using DEND sectionlist: ", count_dend
+
+r.discunif(0,count_dend-1) //set to generate compartment #s from 0 to count
+
+ex_synapse_compartment_index = new Vector(count_dend) 
+
+for(e_syn_count=0; e_syn_count < numexsyn; e_syn_count = e_syn_count+1){  
+    
+    ind=r.repick()
+    while(ex_synapse_compartment_index.x[ind]!=0){
+        ind=r.repick()  //keep repicking till you find a compartment which doesn't already have a synapse
+    }
+    ex_synapse_compartment_index.x[ind] = 1 //generate a uniformly distributed random number between 0 and count and use this to assign the ex synapse in that compartment
+    
+}
+
+
+
+
+forall{
+    for(x){
+        if(x!=0 && x!=1){
+            xdist = raddist(x) //get the radial distance from the soma
+            
+            if(xdist<100){ //add inhibitory synapses at distance<100µm from soma
+                
+                
+                if(mcell_ran4(&highindex)>0.50 && Icount<numinsyn){ //if prob>0.5 and # of inh syn<total #of inhi synapses, then add an inhibitory synapse
+                    syni[Icount] = new Exp2Syn(x)
+                    syni[Icount].tau1 = 0.1
+                    syni[Icount].tau2 = 5
+                    syni[Icount].e = -80
+                    in_syn_locations.x[Icount]=segcount
+                    Icount+=1
+                    isInSynapse.x[segcount]=1
+                    isSynapse.x[segcount]=1
+                } else{ 
+                    isInSynapse.x[segcount]=0 
+                    isSynapse.x[segcount]=0
+                }
+                
+            } //end of if xdist<100
+            
+            
+            
+            //            if(xdist>50 && xdist<300){ //distance>50µm && distance <300µm from soma
+            
+            ifsec DEND {
+                
+                if(ex_synapse_compartment_index.x[exsegcount]==1){ //if this compartment was chosen earlier using repick(), add an excitatory synapse
+                    // print "xdist ",xdist
+                    syne[Ecount] = new Exp2Syn(x)
+                    syne[Ecount].tau1 = 0.1
+                    syne[Ecount].tau2 = 5
+                    syne[Ecount].e = 0
+                    ex_syn_locations.x[Ecount]=segcount
+                    Ecount+=1
+                    isExSynapse.x[segcount]=1
+                    isSynapse.x[segcount]=1
+                } else{ 
+                    isExSynapse.x[segcount]=0 
+                    isSynapse.x[segcount]=0
+                }
+                exsegcount = exsegcount +1
+            } // end of ifsec  ...
+            
+            
+            
+            segcount+=1
+        }
+    }
+}
+
+
+print "segcount = ", segcount
+print "exsegcount = ", exsegcount
+
+print "No of excitatory synapses",Ecount
+
+print "No of inhibitory synapses",Icount
+
+/**************************************************************/
+
+
+seg=0
+Ecount=0
+Icount=0
+
+objref g_ampa,f1
+
+g_ampa= new Vector(220)
+
+f1=new File()
+f1.ropen(ampa_filename.s)
+g_ampa.scanf(f1) //reading into vector
+f1.close()
+
+wopen("synapse_location_with_conductance.txt")
+
+within50to300count=0
+
+forall{
+    for(x){
+        if(x!=0 && x!=1){
+            
+            xdist = raddist(x)
+            ifsec DEND {
+                
+                if(isExSynapse.x[seg]==1){
+                   gex=g_ampa.x[within50to300count]/gexFac
+                    
+                    //  print within50to300count+1, " ", gex
+                    conne[Ecount] = new NetCon(nile,syne[Ecount],0,0,gex) //(src, target, threshold, delay, wt)
+                    Ecount+=1
+                    //  print "gex = ", gex
+                    fprint("%f\t%f\n",xdist,gex)
+                }
+                
+                within50to300count= within50to300count + 1
+            }
+            
+            if(isInSynapse.x[seg]==1){
+                //gin=gex*3
+                conni[Icount] = new NetCon(nili,syni[Icount],0,0,gin) //(src, target, threshold, delay, wt)
+                Icount+=1
+            }
+            
+            seg+=1
+        }
+    }
+}
+
+wopen()
+
+/**************************************************************/
+
+
+use_mcell_ran4(1)
+junk = area(0.5) // need to call area(0.5) once coz ofsome bug in the way area is calculated
+
+
+/**************************************************************/
+//for(trialNo=1;trialNo<51;trialNo+=1){ //if you're using this for loop.. ensure that highindex gets changed inside the loop for each trial
+
+//highindex = trialNo // this highindex is used for initialization of mcell_ran4() for synapse activation timing calculation
+print highindex
+
+trialNo = trialNo -1 //mcell_ran4 increases it by one, so decrease by one to get back
+
+
+print "Trial number: ", trialNo 
+
+
+
+sprint(f_name_isSynapse.s,"Trial_synWithHfast_%d/synWithHfast_isSynapse.txt",trialNo)
+sprint(f_name_isExSynapse.s,"Trial_synWithHfast_%d/synWithHfast_isExSynapse.txt",trialNo)
+sprint(f_name_isInSynapse.s,"Trial_synWithHfast_%d/synWithHfast_isInSynapse.txt",trialNo)
+
+
+
+f_isSynapse.wopen(f_name_isSynapse.s)
+isSynapse.printf(f_isSynapse)
+f_isSynapse.close()
+
+f_isExSynapse.wopen(f_name_isExSynapse.s)
+isExSynapse.printf(f_isExSynapse)
+f_isExSynapse.close()
+
+f_isInSynapse.wopen(f_name_isInSynapse.s)
+isInSynapse.printf(f_isInSynapse)
+f_isInSynapse.close()
+
+/********************************************************************/
+
+
+syncurrcount = 0
+
+finitialize(Vrest)
+fcurrent()
+forall {
+    for (x) {
+        if (ismembrane("hd")||ismembrane("nas")||ismembrane("na3")||ismembrane("nax")) {
+            e_pas(x)=v(x)+(i_hd(x)+ina(x)+ik(x))/g_pas(x)
+        } else {
+            e_pas(x)=v(x)
+            
+        }
+    }
+}
+
+
+
+// finitialize(Vrest)
+// fcurrent()
+
+
+/**************************************************************/
+
+
+
+
+OscFreq = 8 ///////in Hz, frequency of modulation of mean synaptic activation rate
+sigma_ex=1000/(8*OscFreq) //std for gaussian distribution
+sigma_in=1000/(5*OscFreq) //std for gaussian distribution
+mod_factor=1000/OscFreq //used in rate_ex, duration of 1 cycle in ms
+mean= mod_factor/2 //used in rate_ex, as the mean to be subtracted for gaussian distri under the mod usage
+phi=PI/3//PI //phase difference in radians (for interneurons)
+phase=mod_factor*phi/(2*PI) //phaase difference in ms
+
+while (t<tstop) {
+    
+    
+    if (t >= 50) {
+        
+        rate_ex = exp(-(((t%mod_factor)-mean)^2)/(2*(sigma_ex^2))) ///////sets mean activation rate for excitatory synapses 
+        for i=0,numexsyn-1 {
+            if (dt*rate_ex > mcell_ran4(&highindex) ) {
+                e_time[i].append(t)
+                e_time[Ecount].append(t)
+                conne[i].event(t)
+            }
+            esyncurr[i].append(syne[i].i)
+            esyncurrcount = esyncurrcount + syne[i].i
+            
+        }
+        
+        esyncurr[i].append(esyncurrcount) //last index.. save total ex synaptic current
+        esyncurrcount = 0
+        
+        rate_in = exp(-((((t+phase)%mod_factor)-mean)^2)/(2*(sigma_in^2)))
+        
+        for i=0,numinsyn-1 {
+            if (dt*rate_in > mcell_ran4(&highindex)) {
+                i_time[i].append(t)
+                i_time[Icount].append(t)
+                conni[i].event(t)
+            }
+            isyncurr[i].append(syni[i].i)
+            isyncurrcount = isyncurrcount + syni[i].i
+        }
+        
+        isyncurr[i].append(isyncurrcount)
+        isyncurrcount = 0
+        
+    } // end of if(t>=50)
+    
+    seg=0
+    ecount=0
+    icount=0
+    segcount=0
+    
+    if( t>=50){
+        // print "t = ", t*1000
+        forall{
+            for(x){
+                
+                if(x!=0 && x!=1){
+                    
+                    if(isSynapse.x[seg]==1){
+                        
+                        if(isExSynapse.x[seg]==1){
+                            i_total[seg].append(((i_pas(x)+i_cap(x)+i_hd(x)+ina(x)+ik(x))*area(x)*1e-2)+syne[ecount].i) //convert i_pas, i_hd and i_cap from mA/cm2 to nA
+                            //   print secname(), x, "exc curr ", syne[ecount].i
+                            ecount+=1
+                            
+                        }
+                        if(isInSynapse.x[seg]==1){
+                            i_total[seg].append(((i_pas(x)+i_cap(x)+i_hd(x)+ina(x)+ik(x))*area(x)*1e-2)+syni[icount].i) //convert i_pas, i_hd and i_cap from mA/cm2 to nA
+                            //    print secname(), x, "inhi curr ", syni[icount].i
+                            icount+=1
+                            
+                        }
+                    }else{
+                        i_total[seg].append((i_pas(x)+i_cap(x)+i_hd(x)+ina(x)+ik(x))*area(x)*1e-2) //convert i_pas, i_hd and i_cap from mA/cm2 to nA
+                    }
+                    
+                    
+                    i_pas_current[seg].append(i_pas(x)*area(x)*1e-2) //convert i_pas from mA/cm2 to nA
+                    i_cap_current[seg].append(i_cap(x)*area(x)*1e-2) //convert i_cap from mA/cm2 to nA
+                    i_queer_current[seg].append(i_hd(x)*area(x)*1e-2) //convert i_hd from mA/cm2 to nA
+                                        
+                    
+                    
+                    
+                    //   calc_axial_currents(x,i_total[seg].x[i_total[seg].size()-1])   
+                    
+                    seg+=1
+                }
+                // print "Something ", seg
+                
+            }
+        }
+        segcount =0
+        seg=0
+        tvec.append(t)
+    }
+    fadvance()
+}
+
+
+
+/*****************************************************************/
+    //write to files
+    //define all file names according to current trial
+
+    for(i=0;i<Ecount;i+=1){
+        sprint(f_name_etime.s,"Trial_synWithHfast_%d/synWithHfast_ExCurrTime_Syn%d.txt",trialNo,i)
+        
+        f_e_time.wopen(f_name_etime.s)
+        e_time[i].printf(f_e_time)
+        f_e_time.close()
+        e_time[i].resize(0)
+        
+        sprint(f_name_esyncurr.s,"Trial_synWithHfast_%d/synWithHfast_esyncurr_%d.txt",trialNo,ex_syn_locations.x[i])
+        f_esyncurr.wopen(f_name_esyncurr.s)
+        esyncurr[i].printf(f_esyncurr)
+        f_esyncurr.close()
+        esyncurr[i].resize(0)
+        
+        
+    }
+
+    sprint(f_name_etime.s,"Trial_synWithHfast_%d/synWithHfast_ExCurrTime_SynTotal.txt",trialNo)
+
+    f_e_time.wopen(f_name_etime.s)
+    e_time[Ecount].printf(f_e_time)
+    f_e_time.close()
+    e_time[Ecount].resize(0)
+
+    sprint(f_name_esyncurr.s,"Trial_synWithHfast_%d/synWithHfast_esyncurr_total.txt",trialNo)
+    f_esyncurr.wopen(f_name_esyncurr.s)
+    esyncurr[i].printf(f_esyncurr)
+    f_esyncurr.close()
+    esyncurr[i].resize(0)
+
+
+    for(i=0;i<Icount;i+=1){
+        sprint(f_name_itime.s,"Trial_synWithHfast_%d/synWithHfast_InCurrTime_Syn%d.txt",trialNo,i)
+        f_i_time.wopen(f_name_itime.s)
+        i_time[i].printf(f_i_time)
+        f_i_time.close()
+        i_time[i].resize(0)
+        
+        
+        sprint(f_name_isyncurr.s,"Trial_synWithHfast_%d/synWithHfast_isyncurr_%d.txt",trialNo,in_syn_locations.x[i])
+        f_isyncurr.wopen(f_name_isyncurr.s)
+        isyncurr[i].printf(f_isyncurr)
+        f_isyncurr.close()
+        isyncurr[i].resize(0)
+        
+        
+    }
+
+    sprint(f_name_itime.s,"Trial_synWithHfast_%d/synWithHfast_InCurrTime_SynTotal.txt",trialNo)
+    f_i_time.wopen(f_name_itime.s)
+    i_time[Icount].printf(f_i_time)
+    f_i_time.close()
+    i_time[Icount].resize(0)
+
+    sprint(f_name_isyncurr.s,"Trial_synWithHfast_%d/synWithHfast_isyncurr_total.txt",trialNo)
+    f_isyncurr.wopen(f_name_isyncurr.s)
+    isyncurr[i].printf(f_isyncurr)
+    f_isyncurr.close()
+    isyncurr[i].resize(0)
+
+
+
+
+
+    sprint(f_name_tvec.s,"Trial_synWithHfast_%d/synWithHfast_tvec.txt",trialNo)
+    f_tvec.wopen(f_name_tvec.s)
+    tvec.printf(f_tvec)
+    f_tvec.close()
+    tvec.resize(0) //resize for next trail - needed if using the for loop for running several trials
+
+
+
+
+    sprint(f_name_cvec.s,"Trial_synWithHfast_%d/synWithHfast_cvec.txt",trialNo)
+    f_cvec.wopen(f_name_cvec.s)
+    cvec.printf(f_cvec)
+    f_cvec.close()
+    cvec.resize(0) //resize for next trail - needed if using the for loop for running several trials
+
+    sprint(f_name_cvec.s,"Trial_synWithHfast_%d/synWithHfast_cvec42.txt",trialNo)
+    f_cvec.wopen(f_name_cvec.s)
+    cvec42.printf(f_cvec)
+    f_cvec.close()
+    cvec42.resize(0) //resize for next trail - needed if using the for loop for running several trials
+
+
+    sprint(f_name_cvec.s,"Trial_synWithHfast_%d/synWithHfast_cvec62.txt",trialNo)
+    f_cvec.wopen(f_name_cvec.s)
+    cvec62.printf(f_cvec)
+    f_cvec.close()
+    cvec62.resize(0) //resize for next trail - needed if using the for loop for running several trials
+
+
+    sprint(f_name_cvec.s,"Trial_synWithHfast_%d/synWithHfast_cvec69.txt",trialNo)
+    f_cvec.wopen(f_name_cvec.s)
+    cvec69.printf(f_cvec)
+    f_cvec.close()
+    cvec69.resize(0) //resize for next trail - needed if using the for loop for running several trials
+
+
+
+    for(seg=0;seg<no_of_comp;seg+=1){
+        
+        sprint(f_name_total.s,"Trial_synWithHfast_%d/synWithHfast_TotalCurrent_Cmpt%d.txt",trialNo,seg)
+        f_total_current.wopen(f_name_total.s)
+        i_total[seg].printf(f_total_current)
+        f_total_current.close()
+        
+       sprint(f_name_pas.s,"Trial_synWithHfast_%d/synWithHfast_PasCurrent_Cmpt%d.txt",trialNo,seg)
+        f_pas_current.wopen(f_name_pas.s)
+        i_pas_current[seg].printf(f_pas_current)
+        f_pas_current.close()
+        
+        sprint(f_name_cap.s,"Trial_synWithHfast_%d/synWithHfast_CapCurrent_Cmpt%d.txt",trialNo,seg)
+        f_cap_current.wopen(f_name_cap.s)
+        i_cap_current[seg].printf(f_cap_current)
+        f_cap_current.close()
+        
+        sprint(f_name_queer.s,"Trial_synWithHfast_%d/synWithHfast_QueerCurrent_Cmpt%d.txt",trialNo,seg)
+        f_queer_current.wopen(f_name_queer.s)
+        i_queer_current[seg].printf(f_queer_current)
+        f_queer_current.close()
+        
+                
+        //resize the vectors for next trial
+        i_total[seg].resize(0)
+        i_pas_current[seg].resize(0)
+        i_cap_current[seg].resize(0)
+        i_queer_current[seg].resize(0)
+               
+        
+        
+    }
+                         
+/**************************************************************/
+   //save the parameters used in this simulation - for future reference
+f1= new File()
+f1.wopen("Parameter_Hfast.txt")
+
+f1.printf("Rm_soma = %f\n",Rm_soma)
+f1.printf("Rm_end = %f\n",Rm_end)
+f1.printf("Rm_dend = %f\n",Rm_dend)
+f1.printf("Rm_axon = %f\n",Rm_axon)
+f1.printf("rm_xhalf = %f\n",rm_xhalf)
+f1.printf("rm_slope = %f\n",rm_slope)
+
+f1.printf("Ra_soma = %f\n",Ra_soma)
+f1.printf("Ra_end = %f\n",Ra_end)
+f1.printf("Ra_axon = %f\n",Ra_axon)
+f1.printf("Ra_xhalf = %f\n",Ra_xhalf)
+f1.printf("Ra_slope = %f\n",Ra_slope)
+
+f1.printf("c_m = %f\n",c_m)
+f1.printf("cmsoma = %f\n",cmsoma)
+f1.printf("cmdend = %f\n",cmdend)
+f1.printf("cmaxon = %f\n",cmaxon)
+
+f1.printf("Vrest = %f\n",Vrest)
+f1.printf("v_init = %f\n",v_init)
+f1.printf("celsius = %f\n",celsius)
+
+f1.printf("gna = %f\n",gna)
+f1.printf("gkdr = %f\n",gkdr)
+f1.printf("AIS factor = %d\n", AISFactor)
+f1.printf("gexFac = %f\n",gexFac)
+f1.printf("gh = %f\n",gh)
+f1.printf("ghmax = %d\n",ghmax)
+f1.printf("xhalf = %d\n", xhalf)
+f1.printf("slopegrad = %d\n", slopegrad)
+
+f1.printf("Ek = %d\n",Ek)
+f1.printf("Ena = %d\n",Ena)
+f1.printf("Eh = %d\n", Eh)
+f1.printf("no_of_comp = %f\n", no_of_comp)
+
+
+f1.printf("Num. of excitatory synapses = %d\n",numexsyn)
+f1.printf("Num. of inhibitory synapses = %d\n",numinsyn)
+f1.printf("gin = %f\n",gin)
+f1.printf("epsp amp = %f\n",epsp_amp) //determines gex .. note : gex=gex/some_factor
+
+f1.printf("Oscillation Frequency = %d\n", OscFreq)
+f1.printf("mod_factor = %f\n", mod_factor)
+f1.printf("sigma_ex = %f\n", sigma_ex)
+f1.printf("sigma_in = %f\n", sigma_in)
+f1.printf("phi = %f\n", phi)
+f1.printf("phase = %f\n",phase)
+f1.printf("rate_ex = %f\n", rate_ex)
+f1.printf("rate_in = %f\n", rate_in)
+
+f1.close()
+
+
+/**************************************************************/
+
+
+//WAKE UP!!!! SIMLATION'S OVER
+/*CTRLG = 7 // ASCII code for ^G or "bell" character
+strdef foo
+sprint(foo,"%c",CTRLG)
+for(i=0;i<10;i+=1){
+    print foo
+    for (j=0; j<2000000; j+=1){
+    }
+}
+
+*/
+//}//end of trial loop
+

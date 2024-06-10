@@ -1,0 +1,466 @@
+// Make a set of lists, each containing the oblique sections
+// that form a continuous path: starting from the section attached 
+// to the trunk and ending at the apical tip section. 
+
+plcount=0
+pl[plcount]=new SectionList()
+
+apical[0] pl[plcount].append()
+apical[1] pl[plcount].append()
+apical[2] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[0] pl[plcount].append()
+apical[1] pl[plcount].append()
+apical[3] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[4] pl[plcount].append()
+apical[5] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[6] pl[plcount].append()
+apical[7] pl[plcount].append()
+apical[8] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[6] pl[plcount].append()
+apical[7] pl[plcount].append()
+apical[9] pl[plcount].append()
+apical[10] pl[plcount].append()
+apical[11] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[6] pl[plcount].append()
+apical[7] pl[plcount].append()
+apical[9] pl[plcount].append()
+apical[10] pl[plcount].append()
+apical[12] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[6] pl[plcount].append()
+apical[7] pl[plcount].append()
+apical[9] pl[plcount].append()
+apical[13] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[14] pl[plcount].append()
+apical[116] pl[plcount].append()
+apical[117] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[14] pl[plcount].append()
+apical[116] pl[plcount].append()
+apical[118] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[16] pl[plcount].append()
+apical[17] pl[plcount].append()
+apical[18] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[16] pl[plcount].append()
+apical[17] pl[plcount].append()
+apical[19] pl[plcount].append()
+apical[20] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[16] pl[plcount].append()
+apical[17] pl[plcount].append()
+apical[19] pl[plcount].append()
+apical[21] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[23] pl[plcount].append()
+apical[24] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[27] pl[plcount].append()
+apical[28] pl[plcount].append()
+apical[29] pl[plcount].append()
+apical[30] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[27] pl[plcount].append()
+apical[28] pl[plcount].append()
+apical[29] pl[plcount].append()
+apical[31] pl[plcount].append()
+apical[32] pl[plcount].append()
+apical[33] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[27] pl[plcount].append()
+apical[28] pl[plcount].append()
+apical[29] pl[plcount].append()
+apical[31] pl[plcount].append()
+apical[32] pl[plcount].append()
+apical[34] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[27] pl[plcount].append()
+apical[28] pl[plcount].append()
+apical[29] pl[plcount].append()
+apical[31] pl[plcount].append()
+apical[35] pl[plcount].append()
+apical[36] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[27] pl[plcount].append()
+apical[28] pl[plcount].append()
+apical[29] pl[plcount].append()
+apical[31] pl[plcount].append()
+apical[35] pl[plcount].append()
+apical[37] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[27] pl[plcount].append()
+apical[28] pl[plcount].append()
+apical[38] pl[plcount].append()
+apical[39] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[27] pl[plcount].append()
+apical[28] pl[plcount].append()
+apical[38] pl[plcount].append()
+apical[40] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[42] pl[plcount].append()
+apical[43] pl[plcount].append()
+apical[44] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[42] pl[plcount].append()
+apical[43] pl[plcount].append()
+apical[45] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[46] pl[plcount].append()
+apical[47] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[48] pl[plcount].append()
+apical[49] pl[plcount].append()
+apical[50] pl[plcount].append()
+apical[51] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[48] pl[plcount].append()
+apical[49] pl[plcount].append()
+apical[50] pl[plcount].append()
+apical[52] pl[plcount].append()
+apical[53] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[48] pl[plcount].append()
+apical[49] pl[plcount].append()
+apical[50] pl[plcount].append()
+apical[52] pl[plcount].append()
+apical[54] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[48] pl[plcount].append()
+apical[49] pl[plcount].append()
+apical[55] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[56] pl[plcount].append()
+apical[57] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[58] pl[plcount].append()
+apical[59] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[60] pl[plcount].append()
+apical[61] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[62] pl[plcount].append()
+apical[63] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[62] pl[plcount].append()
+apical[63] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[65] pl[plcount].append()
+apical[66] pl[plcount].append()
+apical[67] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[65] pl[plcount].append()
+apical[66] pl[plcount].append()
+apical[68] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[69] pl[plcount].append()
+apical[70] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[71] pl[plcount].append()
+apical[72] pl[plcount].append()
+apical[73] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[71] pl[plcount].append()
+apical[72] pl[plcount].append()
+apical[74] pl[plcount].append()
+apical[75] pl[plcount].append()
+apical[76] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[71] pl[plcount].append()
+apical[72] pl[plcount].append()
+apical[74] pl[plcount].append()
+apical[75] pl[plcount].append()
+apical[77] pl[plcount].append()
+apical[78] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[71] pl[plcount].append()
+apical[72] pl[plcount].append()
+apical[74] pl[plcount].append()
+apical[75] pl[plcount].append()
+apical[77] pl[plcount].append()
+apical[79] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[71] pl[plcount].append()
+apical[72] pl[plcount].append()
+apical[74] pl[plcount].append()
+apical[80] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[81] pl[plcount].append()
+apical[82] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[83] pl[plcount].append()
+apical[84] pl[plcount].append()
+apical[85] pl[plcount].append()
+apical[86] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[83] pl[plcount].append()
+apical[84] pl[plcount].append()
+apical[85] pl[plcount].append()
+apical[87] pl[plcount].append()
+apical[88] pl[plcount].append()
+apical[89] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[83] pl[plcount].append()
+apical[84] pl[plcount].append()
+apical[85] pl[plcount].append()
+apical[87] pl[plcount].append()
+apical[88] pl[plcount].append()
+apical[90] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[83] pl[plcount].append()
+apical[84] pl[plcount].append()
+apical[85] pl[plcount].append()
+apical[87] pl[plcount].append()
+apical[91] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[83] pl[plcount].append()
+apical[84] pl[plcount].append()
+apical[92] pl[plcount].append()
+apical[93] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[83] pl[plcount].append()
+apical[84] pl[plcount].append()
+apical[92] pl[plcount].append()
+apical[94] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[95] pl[plcount].append()
+apical[96] pl[plcount].append()
+apical[97] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[95] pl[plcount].append()
+apical[96] pl[plcount].append()
+apical[98] pl[plcount].append()
+apical[99] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[95] pl[plcount].append()
+apical[96] pl[plcount].append()
+apical[98] pl[plcount].append()
+apical[100] pl[plcount].append()
+apical[101] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[95] pl[plcount].append()
+apical[96] pl[plcount].append()
+apical[98] pl[plcount].append()
+apical[100] pl[plcount].append()
+apical[102] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[104] pl[plcount].append()
+apical[105] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[41] pl[plcount].append()
+apical[107] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[26] pl[plcount].append()
+apical[108] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[26] pl[plcount].append()
+apical[109] pl[plcount].append()
+apical[110] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[26] pl[plcount].append()
+apical[109] pl[plcount].append()
+apical[111] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[22] pl[plcount].append()
+apical[112] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[15] pl[plcount].append()
+apical[113] pl[plcount].append()
+apical[114] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[15] pl[plcount].append()
+apical[113] pl[plcount].append()
+apical[115] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+plcount=plcount+1
+pl[plcount]=new SectionList()
+apical[64] pl[plcount].append()
+apical[106] pl[plcount].append()
+opl[plcount]=new ObliquePath(pl[plcount])
+
+

@@ -1,0 +1,9 @@
+1) First run soma_centers.m to compute the location (x,y,z) of the soma of the 440 neurons.
+
+    In the morphology used, y co-ordinate is used for depth.
+
+2) Run n123_440.m to rotate and translate the entire morphology to the centers computed in step 1.
+
+3) Run Dist_cal.m to compute the distance of each line segment of each neuron from the different electrode locations (ptcoord).
+
+4) Use the computed distances to weight the line currents and compute LFP using phi_cal_line.m

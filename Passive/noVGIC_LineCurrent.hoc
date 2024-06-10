@@ -1,0 +1,733 @@
+
+load_file("stdlib.hoc")
+load_file("ObliquePath.hoc")
+
+objref cvode
+cvode = new CVode()
+cvode.active(0)
+
+
+create axon[2]
+objref SD, AXON, SA, Basal, Trunk, AIS
+objref LM, RAD, RADt, LUC, PSA, PSB, ORI
+create soma[1], apical[1], basal[1]
+objref pl[150], opl[150]
+
+objref netlist, s, ampasyn, f1, DEND, sapamp, somavec, sampvec
+strdef  str2
+
+
+
+dt = 0.025
+tstop = 1540// 1050 //1sec (first 50ms not counted)
+steps_per_ms=40
+
+Rm_soma=80000
+Rm_end=400
+Rm_dend = Rm_soma
+Rm_axon = Rm_soma
+rm_xhalf = 225
+rm_slope = 30
+
+Ra_soma=150
+Ra_end=150
+Ra_axon = Ra_soma
+Ra_xhalf = 210
+Ra_slope = 50
+
+
+c_m       = 1
+cmsoma    = c_m
+cmdend    = c_m*1.8
+cmaxon    = c_m
+
+Vrest = -65
+v_init = -65
+celsius = 34.0
+
+//although Na Kdr densities are non-zero here, setactive() is never called.. so there are no VGICs taking part
+gna=0.02
+gkdr=0.0014
+gna=0 //this is the w/o Na file
+gkdr=0 //this is the w/o kdr file
+
+gexFac = 0.9
+
+AISFactor=5
+epsp_amp = 0.0025  //mV
+
+
+objref ampa_filename
+ampa_filename = new String()
+
+
+gh=0// set to the value for which you'll be running withH.hoc and WithHfast.hoc
+
+ghmax=20
+xhalf=250
+slopegrad=50
+
+sprint(ampa_filename.s,"g_dist_withgh0_epspAmp_%f_calculated.txt",epsp_amp)
+
+/********************************************************************/
+
+Ek = -90
+Ena = 55
+Eh = -30
+
+/********************************************************************/
+
+//radial distance calculation
+
+somax=2.497
+somay=-13.006
+somaz=11.12
+double distances[200]
+
+func raddist() {
+	distn0=distance(0)
+	distances[0]=0
+	sum=0
+    
+	for i=1,n3d()-1 {
+		xx=(x3d(i)-x3d(i-1))*(x3d(i)-x3d(i-1))
+		yy=(y3d(i)-y3d(i-1))*(y3d(i)-y3d(i-1))
+		zz=(z3d(i)-z3d(i-1))*(z3d(i)-z3d(i-1))
+		sum=sum+sqrt(xx+yy+zz)
+		distances[i]=sum
+	}
+    
+	xval=$1
+    
+    // Amoung the various pt3d's find which one matches the distance of
+    //  x closely
+    
+	distn=distance(xval)
+	match=distn-distn0
+	matchptdist=100000
+	for i=0,n3d()-1 {		
+		matptdist=(match-distances[i])*(match-distances[i])
+		if(matchptdist>matptdist){
+			matchptdist=matptdist
+			matchi=i
+		}
+	}
+    
+	//print "Match for ", x, " is ", matchi, " XDIST ", match, " MATCH ", distances[matchi], " ERROR ", sqrt(matchptdist)
+    
+    
+    // Find the distance of the closely matched point to the somatic
+    // centroid and use that as the distance for this BPAP measurement			
+    
+	xx=(x3d(matchi)-somax)*(x3d(matchi)-somax)
+	yy=(y3d(matchi)-somay)*(y3d(matchi)-somay)
+	zz=(z3d(matchi)-somaz)*(z3d(matchi)-somaz)
+	return sqrt(xx+yy+zz)
+}
+
+/********************************************************************/
+
+proc update_init(){
+	finitialize(v_init)
+	fcurrent()
+    forall {
+        for (x){
+            if (ismembrane("hd")||ismembrane("nas")||ismembrane("na3")||ismembrane("nax")) {
+                e_pas(x)=v(x)+(i_hd(x)+ina(x)+ik(x))/g_pas(x)
+            } else {
+                e_pas(x)=v(x)
+            }
+        }
+    }
+}
+/********************************************************************/
+
+proc sanity_check(){
+
+        forall{ 
+            print secname()
+            if(issection("apical.*")){
+            for(x){
+                if(x!=0 && x!=1){
+                        xdist = raddist(x) //get the radial distance from the soma
+                        
+                        if(xdist>50 && xdist<300){ //distance>50µm && distance <300µm from soma
+
+                        print xdist
+                        count1 =count1+1
+                        }
+                    }
+                }
+            }
+        }
+        count2=0
+        forsec "apical"{
+            for(x){
+                if(x!=0 && x!=1){
+                    xdist = raddist(x) //get the radial distance from the soma
+                    
+                    if(xdist>50 && xdist<300){ //distance>50µm && distance <300µm from soma
+                        
+
+                    count2 = count2+1
+                    }                
+                }
+            }
+        }
+
+        print count1
+        print count2			
+}
+/**********************************************************************/
+// Passive Conductances 
+
+proc setpassive(){
+    forall {
+        insert pas
+        e_pas = v_init
+        Ra=Ra_soma
+    }
+    forsec SD{		// For somato-dendritic compartments
+        cm=cmdend
+        g_pas=1/Rm_dend
+    }
+    forsec "soma" {
+        cm = cmsoma
+        g_pas=1/Rm_soma
+    }
+    forsec Trunk {
+        for (x) {
+            rdist=raddist(x)
+            rm = Rm_soma + (Rm_end - Rm_soma)/(1.0 + exp((rm_xhalf-rdist)/rm_slope))
+            Ra = Ra_soma + (Ra_end - Ra_soma)/(1.0 + exp((Ra_xhalf-rdist)/Ra_slope))
+            g_pas(x)=1/rm
+        }
+    }
+    
+    for i=0,plcount {
+        seccount=0
+        forsec pl[i] {
+            if(!seccount){
+                trunk_pas=g_pas(1)
+                seccount=seccount+1
+            } else {
+                g_pas=trunk_pas
+                seccount=seccount+1
+            }
+            //print secname()
+        }
+    }
+    
+}
+/**********************************************************************/
+// Active Conductances 
+
+
+
+proc setactive () {
+    
+	forall{
+        insert na3
+        gbar_na3= gna 
+        insert kdr 
+        gkdrbar_kdr=gkdr
+        
+        
+        insert hd  
+		ghdbar_hd=gh vhalfl_hd=-82
+        tfactor_hd=1
+	}
+    
+	forsec AXON{
+        gbar_na3= 0 
+        gkdrbar_kdr=0
+        ghdbar_hd=0
+        
+    }
+    
+    
+    forsec "apical"{
+        insert nas
+        gbar_nas = gna //has a slow "s" factor
+        
+        gbar_na3 = 0 //since this was added forall, remove from apical section
+        
+    }
+    
+    forsec AIS {
+        gbar_na3= 0 
+        insert nax 
+        gbar_nax = gna*AISFactor//0//10          //5             //50
+        
+        gkdrbar_kdr=gkdr
+        ghdbar_hd=0
+	}
+    
+    forall{
+        if(ismembrane("hd")){
+            ehd_hd=-30
+        }
+        
+        if(ismembrane("na3") || ismembrane("nas") || ismembrane("nax")){
+            ena=55
+        }
+        
+        if(ismembrane("kdr")){
+            ek=-90
+        }
+        
+        
+        
+    }
+    
+    
+	
+}
+
+
+/********************************************************************/
+proc gh_gradient(){
+	
+	
+	forsec Trunk {	// Trunk
+		        
+		for (x) {
+			xdist=raddist(x)
+			
+			ghdbar_hd(x) = gh*(1+ghmax/(1+exp(-(xdist-xhalf)/slopegrad)))            
+            
+			if (xdist > 100){
+				if (xdist>300) { 
+					ndist=300
+				} else { // 100 <= xdist <= 300
+					ndist=xdist
+				}
+				vhalfl_hd(x)=-82-8*(ndist-100)/200
+			} else {	// xdist < 100
+				vhalfl_hd(x)=-82
+			}	
+            
+		}
+	}
+    
+	for i=0,plcount { // Apical obliques
+    	seccount=0
+    	forsec pl[i] {
+        	if(!seccount){	// The first section is the trunk
+            	trunk_h=ghdbar_hd(1)
+				trunk_vhalf=vhalfl_hd(1)
+				seccount=seccount+1
+        	} else {
+				
+            	ghdbar_hd=trunk_h
+				vhalfl_hd=trunk_vhalf
+				seccount=seccount+1
+        	}
+        	//print secname() 
+    	}
+	}       
+    
+	forsec "soma" {
+		  ghdbar_hd=gh vhalfl_hd=-82
+	}	
+    
+	forsec Basal {
+		  ghdbar_hd=gh vhalfl_hd=-82
+	}	
+    
+	forall if (ismembrane("hd") ) ehd_hd = Eh
+        
+        
+        
+        
+        }
+
+
+/**********************************************************************/
+proc load_3dcell() {
+    
+    // $s1 filename
+    
+	forall delete_section()
+	xopen($s1)
+        
+	access soma[2] //define origin for distance calculation
+	distance()
+    
+    
+	SD = new SectionList() //Somato-dendritic section
+	SA = new SectionList() // Somato-axonic section
+	Trunk = new SectionList() //Trunk
+	Basal = new SectionList() //Basal
+    
+	forsec "soma" {
+		SD.append()
+		SA.append()
+	}
+    
+	forsec "basal" { 
+		SD.append()
+		Basal.append()
+	}
+    
+	forsec "apical"{
+		SD.append()
+		SA.append()
+	}
+    
+	// Trunk. 
+    
+	soma[0]	   Trunk.append()
+	apical[0]  Trunk.append() 
+	apical[4]  Trunk.append() 
+	apical[6]  Trunk.append() 
+	apical[14] Trunk.append() 
+	apical[15] Trunk.append() 
+	apical[16] Trunk.append() 
+	apical[22] Trunk.append() 
+	apical[23] Trunk.append() 
+	apical[25] Trunk.append() 
+	apical[26] Trunk.append() 
+	apical[27] Trunk.append() 
+	apical[41] Trunk.append() 
+	apical[42] Trunk.append() 
+	apical[46] Trunk.append() 
+	apical[48] Trunk.append() 
+	apical[56] Trunk.append() 
+	apical[58] Trunk.append() 
+	apical[60] Trunk.append() 
+	apical[62] Trunk.append() 
+	apical[64] Trunk.append() 
+	apical[65] Trunk.append() 
+	apical[69] Trunk.append() 
+	apical[71] Trunk.append()
+	apical[81] Trunk.append() 
+	apical[83] Trunk.append() 
+	apical[95] Trunk.append()
+	apical[103] Trunk.append()
+	apical[104] Trunk.append()
+    
+    load_file("oblique-paths.hoc")
+    
+    setpassive() //before setting the nseg
+    // The lambda constraint
+    totcomp=0
+    forall{
+        nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1   
+        totcomp=totcomp+nseg
+    }
+    print "totcomp = ",totcomp
+    
+    
+    
+	init_cell() //calls setpassive()
+    
+    DEND = new SectionList()
+    forsec "apical"{
+        xdist=raddist(1)
+        if(xdist<300 && xdist > 50){
+            DEND.append()
+        }    
+    }
+
+
+    
+	
+}
+
+/**********************************************************************/
+// For cell number n123 on the DSArchive, converted with CVAPP to give
+// HOC file, the following definition holds. This is the same as Poirazi et
+// al. have used in Neuron, 2003. The argument is that the subtree seems
+// so long to be a dendrite, and the cell does not have a specific axon.
+// There is a catch, though, if the morphology is closely scanned, then 
+// basal dendrites would branch from these axonal segments - which
+// may be fine given the amount of ambiguity one has while tracing! 
+
+proc addaxon() {
+    
+	AXON = new SectionList()
+    AIS = new SectionList() // Axonal initial segment
+    
+	for i = 30,34 basal[i] {
+		AXON.append()
+		Basal.remove()
+	}
+    
+	for i = 18,22 basal[i] {
+		AXON.append()
+        AIS.append()
+		Basal.remove()
+	}
+    
+	forsec AXON {
+		e_pas=v_init 
+		g_pas = 1/Rm_axon 
+		Ra=Ra_axon 
+		cm=cmaxon
+	}
+}
+
+/********************************************************************/
+
+
+
+
+
+proc init_cell() {
+	setpassive()
+	addaxon()
+    
+    //no VGICs here
+	//setactive()
+	//gh_gradient() //sets the gh gradient
+	
+	access soma[2]	// Reinitializing distance origin
+	distance()
+	    
+	finitialize(v_init)
+	fcurrent()
+    forall {
+        for (x) {
+            if (ismembrane("hd")||ismembrane("nas")||ismembrane("na3")||ismembrane("nax")) {
+                e_pas(x)=v(x)+(i_hd(x)+ina(x)+ik(x))/g_pas(x)
+            } else {
+                e_pas(x)=v(x)
+            }
+        }
+    }   
+}
+
+
+
+/********************************************************************/
+
+
+load_3dcell("n123.hoc") //calls setpassive()
+
+
+/********************************************************************/
+
+no_of_comp=totcomp
+objref i_total[no_of_comp], f_total_current, f_name_total
+
+f_name_total = new String()
+f_total_current = new File()
+
+
+
+for(i=0;i<no_of_comp;i+=1){
+    i_total[i]=new Vector()
+    
+}
+
+no_of_lines=0
+forall{
+    no_of_lines+=n3d()-1
+}
+
+objref f_name_line_curr, f_line_curr, line_current[5160]
+
+f_name_line_curr= new String()
+f_line_curr= new File()
+
+for(global_line_num=0;global_line_num<5160;global_line_num+=1){
+    line_current[global_line_num]= new Vector()
+}
+
+
+
+
+
+/********************************************************************/
+
+
+
+//for(trialNo=1;trialNo<=50;trialNo+=1){
+trialNo=1
+
+print "Trial number: ", trialNo
+
+
+update_init()
+
+/**************************************************************/
+//define all file names according to current trial
+
+for(seg=0;seg<no_of_comp;seg+=1){
+    sprint(f_name_total.s,"Trial_noVGIC_%d/noVGIC_TotalCurrent_Cmpt%d.txt",trialNo,seg)
+    f_total_current.ropen(f_name_total.s) //open the pre-recorded total currents files
+    i_total[seg].scanf(f_total_current) //read the pre-recorded total currents into vectors
+    f_total_current.close()
+}
+
+//to ensure that the line currents are written from scratch every time this code is run, wopen the files.. to which line currents will be appended
+
+
+for(line_num=0;line_num<5160;line_num+=1){
+    sprint(f_name_line_curr.s,"Trial_noVGIC_%d/noVGIC_LineCurrent_Line_num_%d.txt",trialNo,line_num)
+    f_line_curr.wopen(f_name_line_curr.s)
+  //  line_current[line_num].printf(f_line_curr)
+    f_line_curr.close()
+    
+}
+
+
+
+
+
+/**************************************************************/
+
+tcount=0
+BLOCK = 0 //keeps track of blocks to be written to file
+
+while (t<tstop) {
+    
+    if(t>50){
+        seg=0
+        segcount = 0
+        global_line_num = 0
+        
+        forall{
+            
+            seg=seg+nseg
+            // For each line segment, determine which compartments are covered
+            //code adopted from Gold et al (2007)
+            
+            for(line_num =1; line_num < n3d(); line_num = line_num+1) {
+                
+                arcloc = arc3d(line_num-1)
+                next_arcloc = arc3d(line_num)
+                
+                // skip any duplicated 3D points
+                if (arcloc == next_arcloc) {
+                    continue
+                }
+                
+                line_arc_ratio = (next_arcloc-arcloc)/L
+                line_start_ratio = arcloc/L
+                line_end_ratio = line_start_ratio +  line_arc_ratio
+                line_curr = 0
+                
+                // -----------------------------------------
+                // sum contributions from different compartments
+                for (i = 0; i < nseg; i = i+1) {
+                    
+                    
+                    
+                    seg_start_ratio = i/nseg
+                    seg_end_ratio = (i+1)/nseg
+                    seg_ratio = 1/nseg
+                    
+                    //(these 4 'if' statements are meant to be mutually exclusive, but hoc
+                    // does not seem to support  'if (...)... else if (...) else if (...)...'
+                    
+                    // this line is totally in this compartment
+                    if (line_start_ratio > seg_start_ratio && line_end_ratio < seg_end_ratio) {
+                        
+                        part_ratio =  (line_arc_ratio/seg_ratio)
+                        seg_line_curr = i_total[segcount].x[tcount] * part_ratio
+                        line_curr = line_curr + seg_line_curr
+                    }
+                    
+                    // this line starts and ends in two outside compartments
+                    if (line_start_ratio <= seg_start_ratio && line_end_ratio >= seg_end_ratio) {
+                        
+                        // this line gets all the current from this compartment
+                        part_ratio = 1.0
+                        seg_line_curr = i_total[segcount].x[tcount]
+                        line_curr = line_curr + seg_line_curr
+                    }
+                    
+                    // this line starts in this compartment and ends in another
+                    if (line_start_ratio > seg_start_ratio && line_end_ratio >= seg_end_ratio && line_start_ratio < seg_end_ratio) {
+                        
+                        part_ratio =  ((seg_end_ratio - line_start_ratio) /seg_ratio)
+                        seg_line_curr = i_total[segcount].x[tcount] * part_ratio
+                        line_curr = line_curr + seg_line_curr
+                    }
+                    
+                    
+                    // this line starts in another compartment and ends in this one
+                    if (line_start_ratio <= seg_start_ratio && line_end_ratio < seg_end_ratio && line_end_ratio > seg_start_ratio) {
+                        
+                        part_ratio = ( (line_end_ratio - seg_start_ratio)/ seg_ratio)
+                        seg_line_curr = i_total[segcount].x[tcount] * part_ratio
+                        line_curr = line_curr + seg_line_curr
+                    }
+                    segcount+=1
+                } //end of for i
+                
+                // print "line_num = ", global_line_num  
+                segcount = seg-nseg
+				
+                line_current[global_line_num].append(line_curr)
+                global_line_num += 1
+                
+                
+            } // end of for line_num
+            
+            
+        } //end of forall
+        
+        
+        
+        /**************************************************************/
+        //line_current.resize(0)  //resize for next time stamp
+        
+    } //end of if
+    fadvance()        
+	BLOCK += 1
+	if(BLOCK==4000){
+	    print t
+		for(line_num=0;line_num<5160;line_num+=1){
+            sprint(f_name_line_curr.s,"Trial_noVGIC_%d/noVGIC_LineCurrent_Line_num_%d.txt",trialNo,line_num)
+            f_line_curr.aopen(f_name_line_curr.s)
+            line_current[line_num].printf(f_line_curr,"%g\r")
+            line_current[line_num].resize(0)
+           
+        }
+		 BLOCK=0
+	}
+	
+    //  print "tcount = ", tcount
+    tcount+=1
+} //end of while t<tstop
+
+if(BLOCK!=0){
+    print t
+    for(line_num=0;line_num<5160;line_num+=1){
+        sprint(f_name_line_curr.s,"Trial_noVGIC_%d/noVGIC_LineCurrent_Line_num_%d.txt",trialNo,line_num)
+        f_line_curr.aopen(f_name_line_curr.s)
+        line_current[line_num].printf(f_line_curr,"%g\r")
+        line_current[line_num].resize(0)
+    }
+}
+
+
+/**************************************************************/
+
+//write to file
+
+//for(line_num=0;line_num<5160;line_num+=1){
+//    sprint(f_name_line_curr.s,"Trial_noVGIC_%d/Current_Line_num_%d.txt",trialNo,line_num)
+//    // print f_name_line_curr.s
+//    //  print "tcount= ", tcount
+//    f_line_curr.wopen(f_name_line_curr.s)
+//    line_current[line_num].printf(f_line_curr)
+//    f_line_curr.close()
+//    
+//}
+
+
+/*****************************************************************/
+
+
+//resize the vectors for next trial 
+
+for(seg=0;seg<no_of_comp;seg+=1){
+    i_total[seg].resize(0)
+}
+
+//}//end of trial loop
+

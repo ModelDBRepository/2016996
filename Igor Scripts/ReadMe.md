@@ -1,0 +1,1 @@
+Use SimulationAnalysis.ipf to compute resonance frequency and impedance phase.
